@@ -12,6 +12,8 @@ from Fermi import Fermi_RZ
 from Fermi import Fermi_UE
 from Fermi import Fermi_Pre_Alloc
 from helper_misc import *
+import numpy as np
+
 
 outputDir = "res/"
 
@@ -143,6 +145,14 @@ def gen_ue_coord(enb,l,w,rad_i,rad_o):
 		if ((x>0 and x<l) and (y>0 and y<w)):
 			return(x,y)
 
+def gen_ue_coord(n,l,w):
+	coord = []
+	for i in range (n):
+		x=random.randint(0,l)
+		y=random.randint(0,w)
+		coord.append((x,y))
+	return coord
+
 def max_interferer(interferers,powers):
 	max_i = interferers[0]
 	for i in interferers:
@@ -266,10 +276,18 @@ def getCQI(s):
 	return (cqi-1)
 
 
-
-
-
-
+def assign_ues_to_enbs(enbs,ues):
+	assign_final = {}
+	for u in ues:
+		enb_id = 0
+		min_d = dist(u,enbs[0])
+		for i in range(len(enbs)):
+			d=dist(u,enbs[i])
+			if (d < min_d):
+				enb_id = i
+				min_d = d
+		assign_final[u] = enb_id
+	return assign_final
 
 
 def remove_node(e,c_map):
@@ -337,7 +355,7 @@ def getSNR(N,assignment,Rx_power,enb,j):
 				#print assignment[bs][i], bs, enb
 				if (assignment[bs][i] == 1):
 					I += Rx_power[enb][j][bs]
-			snr = getSpectralEfficiency(Rx_power[enb][j][enb]/((Noise*spectrumBW[bw])+I-Rx_power[enb][j][enb])) / getSpectralEfficiency(Rx_power[enb][j][enb]/(Noise*spectrumBW[bw]))
+			snr = getSpectralEfficiency(Rx_power[enb][j][enb]/((Noise*spectrumBW[bw])+I-Rx_power[enb][j][enb])) #/ getSpectralEfficiency(Rx_power[enb][j][enb]/(Noise*spectrumBW[bw]))
 			#print snr
 		SNR.append(snr)
 	return SNR
@@ -461,30 +479,57 @@ def main(density,l,w,toytop):
 	N = int(math.ceil(bw / rbgsize))
 	print N
 	timesteps = 10
+	operators = 3
+	operator_enbs = {}
+	operator_ues = {}
+	enb_coord = []
+	UEs = {}
+	UE_activity = {}
+
+	usersPerOperator = {0:25,1:40,2:50}
+
+
 
     # size of the grid (in meters)
 	#l = 500
 	#w = 500
 
         # number of eNodeBs
-	n = int(math.floor((l*w)*density + 0.5))
-	n = 8
+	#n = int(math.floor((l*w)*density + 0.5))
+	n = 10
 	print(n)
-	enb_coord = gen_eNbs_coord(n,l,w)
+	j = 0
+	for i in range(operators):
+		operator_enbs[i] = gen_eNbs_coord(n,l,w)
+		for e in operator_enbs[i]:
+			enb_coord.append(e)
+			UEs[j] = []
+			UE_activity[j] = []
+			j += 1
+		operator_ues[i] = gen_ue_coord(usersPerOperator[i],l,w)
 
+	enb_offset = 0
+	for i in range(operators):
+		temp_assign = assign_ues_to_enbs(operator_enbs[i],operator_ues[i])
+		for u in temp_assign:
+			UEs[enb_offset + temp_assign[u]].append(u)
+			#activity_for_ue = np.random.randint(2, size=(timesteps)).tolist()
+			activity_for_ue = np.ones(timesteps).tolist()
+			UE_activity[enb_offset + temp_assign[u]].append(activity_for_ue)
+		enb_offset += len(operator_enbs[i])
         # array [n] with number of UEs per eNodeB
+
+
 	load = {}
-	for i in range(n):
-		load[i] = 25
+	for i in range(len(enb_coord)):
+		load[i] = len(UEs[i])
 
-	no_class1_clients_in_topo = 3
+	print load
 
-	UEs = {}
-	UE_activity = {}
+	
 	ue_list_to_print={}
 
-	import numpy as np
-
+	'''
 	for enb in range(len(load)):
 		ues = []
 		activity =[]
@@ -504,6 +549,7 @@ def main(density,l,w,toytop):
 
 		UEs[enb] = ues
 		UE_activity[enb] = activity
+		'''
 
 	
 	'''
@@ -595,8 +641,8 @@ def main(density,l,w,toytop):
 # Body, generating scripts
 #os.system('mkdir ' + outputDir)
 for z in range(7,8):
-	l = 300
-	w = 300
+	l = 400
+	w = 400
 	#os.system('mkdir -p res')
 	#os.system('mkdir -p generated-ns3-scripts')
 	dens = float(8)/(l*w)
