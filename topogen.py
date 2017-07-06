@@ -14,6 +14,7 @@ from Fermi import Fermi_Pre_Alloc
 from helper_misc import *
 import numpy as np
 
+timesteps = 10
 
 outputDir = "res/"
 
@@ -398,7 +399,94 @@ def process_activity(activity):
 
 
 
-	print processed_ue	
+	#print processed_ue	
+	return processed_ue	
+
+
+class Operator:
+	def __init__(self, op_id):
+		self.ID = op_id
+		self.UEs = []
+		self.eNBs =[]
+
+	def add_eNBs (self, eNB_coords, offset):
+		i = 0
+		for e in eNB_coords:
+			self.eNBs.append(eNodeB(offset + i, e, self.ID))
+			i += 1
+
+	def add_UEs (self, UE_coords, offset):
+		i = 0
+		for u in UE_coords:
+			self.UEs.append(UserE(offset + i, u, self.ID))
+			activity_for_ue = np.random.randint(2, size=(timesteps)).tolist()
+			#activity_for_ue = np.ones(timesteps).tolist()
+			self.UEs[i].activity = activity_for_ue
+			i += 1
+
+	def assignUestoeNBs (self):
+		ue_coords = []
+		enb_coords = []
+		for u in self.UEs:
+			ue_coords.append(u.coords)
+		for e in self.eNBs:
+			enb_coords.append(e.coords)
+
+		temp_assign = assign_ues_to_enbs(enb_coords,ue_coords)
+
+		i = 0
+		for u in ue_coords:
+			assert (cmp(self.UEs[i].coords, u) == 0),"User coords don't match"
+
+			self.UEs[i].eNB = self.eNBs[temp_assign[u]].ID
+			self.eNBs[temp_assign[u]].UEs.append(self.UEs[i])
+			i += 1
+
+	def getData(self):
+		operator_enbs = {}
+		operator_ues = {}
+		enb_coord = []
+		UEs = {}
+		UE_activity = {}
+		#UE_activity = {}
+		for e in self.eNBs:
+			enb_coord.append(e.coords)
+			UEs[e.ID] = []
+			UE_activity[e.ID] = []
+
+		operator_enbs[self.ID] = enb_coord
+		operator_ues[self.ID] = []
+		for u in self.UEs:
+			operator_ues[self.ID].append(u.coords)
+			UEs[u.eNB].append(u.coords)
+			UE_activity[u.eNB].append(u.activity)
+		return (operator_enbs,operator_ues,UEs,enb_coord,UE_activity)
+
+
+
+class eNodeB:
+
+    def __init__(self, enb_id, coord, operator):
+    	self.ID = enb_id
+        self.coords = coord
+        self.operator = operator    # creates a new empty list for each dog
+        self.UEs = []
+
+    def add_ue(self, ue):
+        self.UEs.append(ue)
+
+class UserE:
+
+    def __init__(self, ue_id, coord, operator):
+    	self.ID = ue_id
+        self.coords = coord
+        self.operator = operator
+        self.eNB = -1
+        self.activity = []
+
+	def assign_eNB(self, enb_id):
+		self.eNB = enb_id
+
 
 def run_ideal (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power):
 	activity = []
@@ -416,7 +504,7 @@ def run_ideal (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power):
 		(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocations(UEs,u_m,deepcopy(G),load,N,info,comp, True)
 		activity.append(run_single (UEs,N,UE_activity,Rx_power,assign_grid,i))
 
-	process_activity(activity)
+	return process_activity(activity)
 
 	#print activity
 
@@ -432,7 +520,7 @@ def run_baseline1 (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power):
 		(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocations(UEs,u_m,deepcopy(G),load,N,info,comp)
 		activity.append(run_single (UEs,N,UE_activity,Rx_power,assign_grid,i))
 
-	process_activity(activity)
+	return process_activity(activity)
 	#print activity
 
 def run_baseline2 (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power):
@@ -445,32 +533,107 @@ def run_baseline2 (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power):
 		activity.append(run_single (UEs,N,UE_activity,Rx_power,assign_grid,i))
 
 	#print activity[0]
-	process_activity(activity)
+	return process_activity(activity)
 
-def run_creditBased (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power):
+def run_creditBased1a (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,Operators):
 	activity = []
 
 	credit = {}
-	for enb in UEs:
-		credit[enb] = random.randint(800,1000)
-
+	for op in Operators:
+		credit[op] = 100.0
+	load = {}
+	op_active_users = {}
 	for i in range(timesteps):
-		load = {}
-
-		for enb in UEs:
-			flip = random.randint(0,1)
-			if (flip == 0):
-				load[enb] = 0.2*credit[enb]
-			else:
-				load[enb] = 0.05*credit[enb]
-
-			credit[enb] -= load[enb]
-		#print load
+		for op in Operators:
+			for enb in op.eNBs:
+				load[enb.ID] = credit[op]/len(op.eNBs)
+		print load
 
 		(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocations(UEs,u_m,deepcopy(G),load,N,info,comp)
 		activity.append(run_single (UEs,N,UE_activity,Rx_power,assign_grid,i))
 
-	process_activity(activity)
+	return process_activity(activity)
+
+def run_creditBased1b (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,Operators):
+	activity = []
+
+	credit = {}
+	for op in Operators:
+		credit[op] = float(len(op.UEs))
+	load = {}
+	op_active_users = {}
+	for i in range(timesteps):
+		for op in Operators:
+			for enb in op.eNBs:
+				load[enb.ID] = credit[op]/len(op.eNBs)
+		print load
+
+		(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocations(UEs,u_m,deepcopy(G),load,N,info,comp)
+		activity.append(run_single (UEs,N,UE_activity,Rx_power,assign_grid,i))
+
+	return process_activity(activity)
+
+def run_creditBased2a (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,Operators):
+	activity = []
+
+	credit = {}
+	for op in Operators:
+		credit[op] = 100.0
+	load = {}
+	op_active_users = {}
+	for i in range(timesteps):
+		for op in Operators:
+			tot_active = 0
+			for enb in op.eNBs:
+				active_ue = 0
+				for j in range(len(enb.UEs)):
+					if (enb.UEs[j].activity[i] == 1):
+						active_ue += 1
+				load[enb.ID] = active_ue
+				tot_active += active_ue
+			op_active_users[op] = tot_active
+		for op in Operators:
+			tot_active = 0
+			for enb in op.eNBs:
+				load[enb.ID] = credit[op]*load[enb.ID]/op_active_users[op]
+		print load
+
+		(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocations(UEs,u_m,deepcopy(G),load,N,info,comp)
+		activity.append(run_single (UEs,N,UE_activity,Rx_power,assign_grid,i))
+
+	return process_activity(activity)
+
+def run_creditBased2b (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,Operators):
+	activity = []
+
+	credit = {}
+	for op in Operators:
+		credit[op] = float(len(op.UEs))
+
+
+	load = {}
+	op_active_users = {}
+	for i in range(timesteps):
+		for op in Operators:
+			tot_active = 0
+			for enb in op.eNBs:
+				active_ue = 0
+				for j in range(len(enb.UEs)):
+					if (enb.UEs[j].activity[i] == 1):
+						active_ue += 1
+				load[enb.ID] = active_ue
+				tot_active += active_ue
+			op_active_users[op] = tot_active
+		for op in Operators:
+			tot_active = 0
+			for enb in op.eNBs:
+				load[enb.ID] = credit[op]*load[enb.ID]/op_active_users[op]
+		print load
+
+		(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocations(UEs,u_m,deepcopy(G),load,N,info,comp)
+		activity.append(run_single (UEs,N,UE_activity,Rx_power,assign_grid,i))
+
+	return process_activity(activity)
 
 
 def main(density,l,w,toytop):
@@ -478,13 +641,15 @@ def main(density,l,w,toytop):
         # number of sub-channels
 	N = int(math.ceil(bw / rbgsize))
 	print N
-	timesteps = 10
 	operators = 3
 	operator_enbs = {}
 	operator_ues = {}
 	enb_coord = []
 	UEs = {}
 	UE_activity = {}
+	Activity = {}
+
+	Operators = []
 
 	usersPerOperator = {0:25,1:40,2:50}
 
@@ -499,25 +664,28 @@ def main(density,l,w,toytop):
 	n = 10
 	print(n)
 	j = 0
+	k = 0;
 	for i in range(operators):
-		operator_enbs[i] = gen_eNbs_coord(n,l,w)
-		for e in operator_enbs[i]:
-			enb_coord.append(e)
-			UEs[j] = []
-			UE_activity[j] = []
-			j += 1
-		operator_ues[i] = gen_ue_coord(usersPerOperator[i],l,w)
+		Op = Operator(i)
+		temp_coords = gen_eNbs_coord(n,l,w)
+		Op.add_eNBs(temp_coords,j)
+		j += len(temp_coords)
 
-	enb_offset = 0
-	for i in range(operators):
-		temp_assign = assign_ues_to_enbs(operator_enbs[i],operator_ues[i])
-		for u in temp_assign:
-			UEs[enb_offset + temp_assign[u]].append(u)
-			#activity_for_ue = np.random.randint(2, size=(timesteps)).tolist()
-			activity_for_ue = np.ones(timesteps).tolist()
-			UE_activity[enb_offset + temp_assign[u]].append(activity_for_ue)
-		enb_offset += len(operator_enbs[i])
-        # array [n] with number of UEs per eNodeB
+		temp_coords = gen_ue_coord(usersPerOperator[i],l,w)
+		Op.add_UEs(temp_coords,k)
+		k += len(temp_coords)
+		Op.assignUestoeNBs()
+		Operators.append(Op)
+
+
+	for op in Operators:
+		(a,b,c,d,e) = op.getData()
+		operator_enbs.update(a)
+		operator_ues.update(b)
+		UEs.update(c)
+		enb_coord += d
+		UE_activity.update(e)
+
 
 
 	load = {}
@@ -529,29 +697,6 @@ def main(density,l,w,toytop):
 	
 	ue_list_to_print={}
 
-	'''
-	for enb in range(len(load)):
-		ues = []
-		activity =[]
-		for j in range(load[enb]):
-			#if (j==0 and no_class1_clients_in_topo > 0):
-			#	ue = gen_ue_coord(enb_coord[enb],l,w,10,15)
-			#	no_class1_clients_in_topo -= 1
-			if (j < 1):
-				ue = gen_ue_coord(enb_coord[enb],l,w,10,20)
-			else:
-				ue = gen_ue_coord(enb_coord[enb],l,w,0,80)
-			ues.append(ue)
-			#activity.append(np.random.randint(2, size=(timesteps)).tolist())
-			activity.append(np.ones(timesteps).tolist())
-
-
-
-		UEs[enb] = ues
-		UE_activity[enb] = activity
-		'''
-
-	
 	'''
 	enb_coord = [(100,0),(150,0)]
 	UEs={0: [(120,0)], 1:[(110,0)]}
@@ -612,15 +757,79 @@ def main(density,l,w,toytop):
 
 	writegeneralInfo(info,enb_coord,ue_list_to_print,UEs,load,i_map,i_map,{},{},G,u_m)
 
+	results = {}
 	#(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocations(UEs,u_m,deepcopy(G),load,N,info,comp)
 	#run_single (UEs,N,UE_activity,RxPower,assign_grid)
-	run_ideal (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower)
-	print ''
-	#run_baseline1 (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower)
-	print ''
-	#run_baseline2 (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower)
-	print ''
-	#run_creditBased (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower)
+	res = run_ideal (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower)
+	i = 0
+	for e in res:
+		for u in res[e]:
+			if i not in results:
+				results[i] = []
+			results[i].append(res[e][u])
+			i += 1
+	res = run_baseline1 (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower)
+	i = 0
+	for e in res:
+		for u in res[e]:
+			if i not in results:
+				results[i] = []
+			results[i].append(res[e][u])
+			i += 1
+	res = run_baseline2 (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower)
+	i = 0
+	for e in res:
+		for u in res[e]:
+			if i not in results:
+				results[i] = []
+			results[i].append(res[e][u])
+			i += 1
+	res = run_creditBased1a (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower,Operators)
+	i = 0
+	for e in res:
+		for u in res[e]:
+			if i not in results:
+				results[i] = []
+			results[i].append(res[e][u])
+			i += 1
+	res = run_creditBased1b (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower,Operators)
+	i = 0
+	for e in res:
+		for u in res[e]:
+			if i not in results:
+				results[i] = []
+			results[i].append(res[e][u])
+			i += 1
+
+	res = run_creditBased2a (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower,Operators)
+	i = 0
+	for e in res:
+		for u in res[e]:
+			if i not in results:
+				results[i] = []
+			results[i].append(res[e][u])
+			i += 1
+	res = run_creditBased2b (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower,Operators)
+	i = 0
+	for e in res:
+		for u in res[e]:
+			if i not in results:
+				results[i] = []
+			results[i].append(res[e][u])
+			i += 1
+
+
+
+	f = open('results.csv','w')
+	for u in results:
+		for i in range(len(results[u])):
+			f.write(str(results[u][i]))
+			if (i == len(results[u])-1):
+				f.write('\n')
+			else:
+				f.write(',')
+	f.close()
+
 
 
 
