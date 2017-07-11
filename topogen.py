@@ -14,14 +14,14 @@ from Fermi import Fermi_Pre_Alloc
 from helper_misc import *
 import numpy as np
 
-timesteps = 10
+timesteps = 1
 
 outputDir = "res/"
 
 SNR = 3
 rad = 100
 bw = 100
-rbgsize = 4
+rbgsize = 1
 spectrumBW = {6:1.4e6, 15:3.0e6, 25:5.0e6, 50:10.0e6, 75:15.0e6, 100:20.0e6}
 SpectralEfficiencyForCqi = [
   0.0,
@@ -343,6 +343,39 @@ def FermiAllocations(UEs,u_m,G,load,N,info,comp,logging=False):
 			print 'share: ', Allocated_share
 
 		return (Assign,Allocated_share,assign_grid)
+
+def FermiAllocationsSimple(UEs,G,load,N):
+		assign = []
+		alloc = []
+		assign_grid = {}
+
+		for enb in UEs:
+			assign_grid[enb] = [0]*N
+
+
+                # Main calculation
+		for c_map in G:
+			(channel_assignment,allocated_share) = Fermi(c_map,load,N)
+			assign.append(channel_assignment)
+			alloc.append(allocated_share)
+			#assign_us.append(KlogN(c_map,W,N))
+
+		Assign = {}
+		for a in assign:
+			Assign.update(a)
+		Allocated_share = {}
+		for a in Assign:
+			share = 0
+			for interval in Assign[a]:
+				share += interval[1]-interval[0]+1
+
+				for j in range(interval[0],interval[1]+1):
+					assign_grid[a][j] = 1
+
+			Allocated_share[a] = share
+		
+
+		return (Assign,Allocated_share,assign_grid)
  
 
 def getSNR(N,assignment,Rx_power,enb,j):
@@ -419,8 +452,8 @@ class Operator:
 		i = 0
 		for u in UE_coords:
 			self.UEs.append(UserE(offset + i, u, self.ID))
-			activity_for_ue = np.random.randint(2, size=(timesteps)).tolist()
-			#activity_for_ue = np.ones(timesteps).tolist()
+			#activity_for_ue = np.random.randint(2, size=(timesteps)).tolist()
+			activity_for_ue = np.ones(timesteps).tolist()
 			self.UEs[i].activity = activity_for_ue
 			i += 1
 
@@ -636,6 +669,125 @@ def run_creditBased2b (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,Oper
 	return process_activity(activity)
 
 
+def getUtilityForOp(UEs,G,load,N,UE_activity,Rx_power,op):
+	(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocationsSimple(UEs,deepcopy(G),deepcopy(load),N)
+	ac = run_single (UEs,N,UE_activity,Rx_power,assign_grid,0)
+	utility = 0	
+	for e in op.eNBs:
+		enb = e.ID
+		active_ue = 0
+		for ue in range(len(e.UEs)):
+			effi = 0
+			for ef in ac[enb][ue]:
+				if (ef != -1):
+					effi += ef
+			if (effi == 0 and UE_activity[enb][ue][0] == 1):
+				utility += -100
+			elif(effi != 0):
+				utility += math.log(effi)
+
+		#if (load[enb] != 0 and FERMIshare[enb] == 0):
+		#	availableCredit.append(enb)
+
+	return utility
+
+
+def find_max_grad(UEs,G,load,N,UE_activity,Rx_power,op, utility):
+	print 'Finding Max grad direction'
+	print 'Utility to beat:', utility
+	#print load
+	step = 1
+	E1 = 0
+	E2 = 0
+	util = utility
+	optimalLoad = deepcopy(load)
+	for e1 in op.eNBs:
+		for e2 in op.eNBs:
+			if (e1.ID == e2.ID):
+				continue
+			if (load[e1.ID] <= step):
+				continue
+			if (load[e2.ID] == 0):
+				continue
+
+			newLoad = deepcopy(load)
+			newLoad[e1.ID] -= step
+			newLoad[e2.ID] += step
+			#toprint = {x:newLoad[x] for x in range(0,10)}
+			newutility = getUtilityForOp(UEs,G,newLoad,N,UE_activity,Rx_power,op)
+			print e1.ID, '->', e2.ID, ':', newutility
+			#print toprint
+			#print ''
+
+			if (newutility > util):
+				E1 = e1.ID
+				E2 = e2.ID
+				util = newutility
+				optimalLoad = deepcopy(newLoad)
+				print 'new max', util
+	print '\n\n'
+	return (E1,E2,optimalLoad,util)
+
+
+def maximizeUtility(UEs,G,load,N,UE_activity,Rx_power,op):
+	utility = getUtilityForOp(UEs,G,load,N,UE_activity,Rx_power,op)
+	print utility
+	print getUtilityForOp(UEs,G,load,N,UE_activity,Rx_power,op),	getUtilityForOp(UEs,G,load,N,UE_activity,Rx_power,op), getUtilityForOp(UEs,G,load,N,UE_activity,Rx_power,op)
+	step = 1
+	while (1):
+		(E1,E2,optimalLoad,utility) = find_max_grad(UEs,G,deepcopy(load),N,UE_activity,Rx_power,op, utility)
+		if (E1 == E2):
+			break
+		print getUtilityForOp(UEs,G,optimalLoad,N,UE_activity,Rx_power,op),	getUtilityForOp(UEs,G,optimalLoad,N,UE_activity,Rx_power,op), getUtilityForOp(UEs,G,optimalLoad,N,UE_activity,Rx_power,op)
+
+		load = optimalLoad
+		print 'Iterating on the max gradient', E1 ,'->', E2
+		while (load[E1] > step):
+			nload = deepcopy(load)
+			nload[E1] -= step
+			nload[E2] += step
+			newutility = getUtilityForOp(UEs,G,nload,N,UE_activity,Rx_power,op)
+			if(newutility <= utility):
+				break
+			utility = newutility
+			print utility
+			load = nload
+		print '\n\n'
+	print 'Final Utility = ', utility, getUtilityForOp(UEs,G,load,N,UE_activity,Rx_power,op)
+
+def run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,Operators):
+	activity = []
+
+	credit = {}
+	for op in Operators:
+		credit[op] = float(len(op.UEs))
+
+
+	load = {}
+	op_active_users = {}
+	for i in range(timesteps):
+		for op in Operators:
+			tot_active = 0
+			for enb in op.eNBs:
+				active_ue = 0
+				for j in range(len(enb.UEs)):
+					if (enb.UEs[j].activity[i] == 1):
+						active_ue += 1
+				load[enb.ID] = active_ue
+				tot_active += active_ue
+			op_active_users[op] = tot_active
+		for op in Operators:
+			tot_active = 0
+			for enb in op.eNBs:
+				load[enb.ID] = int(credit[op]*load[enb.ID]/op_active_users[op])
+		#print load
+
+		maximizeUtility(UEs,G,load,N,UE_activity,Rx_power,Operators[0])
+		#(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocations(UEs,u_m,deepcopy(G),load,N,info,comp)
+		#activity.append(run_single (UEs,N,UE_activity,Rx_power,assign_grid,i))
+
+	return process_activity(activity)
+
 def main(density,l,w,toytop):
 
         # number of sub-channels
@@ -661,7 +813,7 @@ def main(density,l,w,toytop):
 
         # number of eNodeBs
 	#n = int(math.floor((l*w)*density + 0.5))
-	n = [10,20,30]
+	n = [5,20,30]
 	print(n)
 	j = 0
 	k = 0;
@@ -760,64 +912,66 @@ def main(density,l,w,toytop):
 	results = {}
 	#(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocations(UEs,u_m,deepcopy(G),load,N,info,comp)
 	#run_single (UEs,N,UE_activity,RxPower,assign_grid)
-	res = run_ideal (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower)
-	i = 0
-	for e in res:
-		for u in res[e]:
-			if i not in results:
-				results[i] = []
-			results[i].append(res[e][u])
-			i += 1
-	res = run_baseline1 (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower)
-	i = 0
-	for e in res:
-		for u in res[e]:
-			if i not in results:
-				results[i] = []
-			results[i].append(res[e][u])
-			i += 1
-	res = run_baseline2 (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower)
-	i = 0
-	for e in res:
-		for u in res[e]:
-			if i not in results:
-				results[i] = []
-			results[i].append(res[e][u])
-			i += 1
-	res = run_creditBased1a (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower,Operators)
-	i = 0
-	for e in res:
-		for u in res[e]:
-			if i not in results:
-				results[i] = []
-			results[i].append(res[e][u])
-			i += 1
-	res = run_creditBased1b (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower,Operators)
-	i = 0
-	for e in res:
-		for u in res[e]:
-			if i not in results:
-				results[i] = []
-			results[i].append(res[e][u])
-			i += 1
+	# res = run_ideal (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower)
+	# i = 0
+	# for e in res:
+	# 	for u in res[e]:
+	# 		if i not in results:
+	# 			results[i] = []
+	# 		results[i].append(res[e][u])
+	# 		i += 1
+	# res = run_baseline1 (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower)
+	# i = 0
+	# for e in res:
+	# 	for u in res[e]:
+	# 		if i not in results:
+	# 			results[i] = []
+	# 		results[i].append(res[e][u])
+	# 		i += 1
+	# res = run_baseline2 (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower)
+	# i = 0
+	# for e in res:
+	# 	for u in res[e]:
+	# 		if i not in results:
+	# 			results[i] = []
+	# 		results[i].append(res[e][u])
+	# 		i += 1
+	# res = run_creditBased1a (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower,Operators)
+	# i = 0
+	# for e in res:
+	# 	for u in res[e]:
+	# 		if i not in results:
+	# 			results[i] = []
+	# 		results[i].append(res[e][u])
+	# 		i += 1
+	# res = run_creditBased1b (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower,Operators)
+	# i = 0
+	# for e in res:
+	# 	for u in res[e]:
+	# 		if i not in results:
+	# 			results[i] = []
+	# 		results[i].append(res[e][u])
+	# 		i += 1
 
-	res = run_creditBased2a (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower,Operators)
-	i = 0
-	for e in res:
-		for u in res[e]:
-			if i not in results:
-				results[i] = []
-			results[i].append(res[e][u])
-			i += 1
-	res = run_creditBased2b (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower,Operators)
-	i = 0
-	for e in res:
-		for u in res[e]:
-			if i not in results:
-				results[i] = []
-			results[i].append(res[e][u])
-			i += 1
+	# res = run_creditBased2a (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower,Operators)
+	# i = 0
+	# for e in res:
+	# 	for u in res[e]:
+	# 		if i not in results:
+	# 			results[i] = []
+	# 		results[i].append(res[e][u])
+	# 		i += 1
+	# res = run_creditBased2b (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower,Operators)
+	# i = 0
+	# for e in res:
+	# 	for u in res[e]:
+	# 		if i not in results:
+	# 			results[i] = []
+	# 		results[i].append(res[e][u])
+	# 		i += 1
 
+	run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower,Operators)
+	#res = run_ideal (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower)
 
 	f = open('results.dat','w')
 	for u in results:
