@@ -575,6 +575,11 @@ def Fermi(i_map,load,N):
 
 	(i_map_,fill_in) = Triangulation (deepcopy(i_map))
 	C = cliques(i_map_)
+	for c in C:
+		c.sort()
+	C.sort()
+
+	#print (C)
 	Alloc = Allocate(i_map_,load,N,deepcopy(C))
 
 	#print(Alloc)

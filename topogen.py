@@ -43,6 +43,8 @@ Noise = 1.65959e-19
 dist_thresh = 180
 cqi_thresh = 3
 
+info2 = open('temp.txt','w')
+
 
 
 def dist(a,b):
@@ -373,7 +375,9 @@ def FermiAllocationsSimple(UEs,G,load,N):
 					assign_grid[a][j] = 1
 
 			Allocated_share[a] = share
-		
+		info2.write(str(load))
+		info2.write('\n\n')
+		writeInfo('FERMI',Assign,Allocated_share,Allocated_share,info2)
 
 		return (Assign,Allocated_share,assign_grid)
  
@@ -668,29 +672,40 @@ def run_creditBased2b (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,Oper
 
 	return process_activity(activity)
 
-
-def getUtilityForOp(UEs,G,load,N,UE_activity,Rx_power,op):
-	(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocationsSimple(UEs,deepcopy(G),deepcopy(load),N)
-	ac = run_single (UEs,N,UE_activity,Rx_power,assign_grid,0)
-	utility = 0	
-	for e in op.eNBs:
-		enb = e.ID
-		active_ue = 0
-		for ue in range(len(e.UEs)):
-			effi = 0
-			for ef in ac[enb][ue]:
-				if (ef != -1):
-					effi += ef
-			if (effi == 0 and UE_activity[enb][ue][0] == 1):
-				utility += -100
-			elif(effi != 0):
-				utility += math.log(effi)
-
+def getUtility(UE_activity,operators,ac):
+	utils = {}
+	for op in operators:
+		utility = 0	
+		for e in op.eNBs:
+			enb = e.ID
+			active_ue = 0
+			for ue in range(len(e.UEs)):
+				effi = 0
+				for ef in ac[enb][ue]:
+					if (ef != -1):
+						effi += ef
+				if (effi == 0 and UE_activity[enb][ue][0] == 1):
+					utility += -100
+				elif(effi != 0):
+					utility += math.log(effi)
+		utils[op.ID] = utility
+	return utils
 		#if (load[enb] != 0 and FERMIshare[enb] == 0):
 		#	availableCredit.append(enb)
 
 	return utility
 
+def getUtilityForOp(UEs,G,load,N,UE_activity,Rx_power,op):
+	(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocationsSimple(UEs,deepcopy(G),deepcopy(load),N)
+	ac = run_single (UEs,N,UE_activity,Rx_power,assign_grid,0)
+	util = getUtility(UE_activity,[op],ac)
+	return util[op.ID]
+
+def getAllUtil(UEs,G,load,N,UE_activity,Rx_power,op):
+	(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocationsSimple(UEs,deepcopy(G),deepcopy(load),N)
+	ac = run_single (UEs,N,UE_activity,Rx_power,assign_grid,0)
+	util = getUtility(UE_activity,op,ac)
+	return util
 
 def find_max_grad(UEs,G,load,N,UE_activity,Rx_power,op, utility):
 	print 'Finding Max grad direction'
@@ -732,13 +747,12 @@ def find_max_grad(UEs,G,load,N,UE_activity,Rx_power,op, utility):
 def maximizeUtility(UEs,G,load,N,UE_activity,Rx_power,op):
 	utility = getUtilityForOp(UEs,G,load,N,UE_activity,Rx_power,op)
 	print utility
-	print getUtilityForOp(UEs,G,load,N,UE_activity,Rx_power,op),	getUtilityForOp(UEs,G,load,N,UE_activity,Rx_power,op), getUtilityForOp(UEs,G,load,N,UE_activity,Rx_power,op)
 	step = 1
+	
 	while (1):
 		(E1,E2,optimalLoad,utility) = find_max_grad(UEs,G,deepcopy(load),N,UE_activity,Rx_power,op, utility)
 		if (E1 == E2):
 			break
-		print getUtilityForOp(UEs,G,optimalLoad,N,UE_activity,Rx_power,op),	getUtilityForOp(UEs,G,optimalLoad,N,UE_activity,Rx_power,op), getUtilityForOp(UEs,G,optimalLoad,N,UE_activity,Rx_power,op)
 
 		load = optimalLoad
 		print 'Iterating on the max gradient', E1 ,'->', E2
@@ -753,7 +767,9 @@ def maximizeUtility(UEs,G,load,N,UE_activity,Rx_power,op):
 			print utility
 			load = nload
 		print '\n\n'
-	print 'Final Utility = ', utility, getUtilityForOp(UEs,G,load,N,UE_activity,Rx_power,op)
+	
+	print 'Final Utility = ', utility
+	return load
 
 def run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,Operators):
 	activity = []
@@ -782,9 +798,9 @@ def run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,
 				load[enb.ID] = int(credit[op]*load[enb.ID]/op_active_users[op])
 		#print load
 
-		maximizeUtility(UEs,G,load,N,UE_activity,Rx_power,Operators[0])
+		load = maximizeUtility(UEs,G,load,N,UE_activity,Rx_power,Operators[0])
 		#(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocations(UEs,u_m,deepcopy(G),load,N,info,comp)
-		#activity.append(run_single (UEs,N,UE_activity,Rx_power,assign_grid,i))
+		#run_single (UEs,N,UE_activity,Rx_power,assign_grid,i)
 
 	return process_activity(activity)
 
@@ -995,7 +1011,7 @@ def main(density,l,w,toytop):
 
 
 	plot_graph(outputDir,'interferencemap', i_map, enb_coord, u_m, UEs,l,w)
-	os.system('octave ' + outputDir + 'interferencemap.m')
+	#os.system('octave ' + outputDir + 'interferencemap.m')
 	#plot_ue_interference(outputDir,'UEinterferencemap', edges, enb_coord, u_m, UEs,l, w)
 	#os.system('octave ' + outputDir + 'UEinterferencemap.m')
 

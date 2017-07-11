@@ -33,9 +33,9 @@ def writeInfo(scheme,assign,share_eNB,share_UE,info):
 		info.write('Share per ENB: '+str(fairness_index(share_eNB))+'\n')
 		info.write(str(share_eNB))
 		info.write('\n')
-		info.write('Share per UE: '+str(fairness_index(share_UE))+'\n')
-		info.write(str(share_UE))
-		info.write('\n')
+		# info.write('Share per UE: '+str(fairness_index(share_UE))+'\n')
+		# info.write(str(share_UE))
+		# info.write('\n')
 		info.write('\n')
 
 def writegeneralInfo(info,enb_coord,ue_list_to_print,UEs,load,i_map,i_map_dir,ue_interfering,edges,G,u_m):
