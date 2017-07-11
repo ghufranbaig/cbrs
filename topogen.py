@@ -651,7 +651,7 @@ def main(density,l,w,toytop):
 
 	Operators = []
 
-	usersPerOperator = {0:25,1:40,2:50}
+	usersPerOperator = {0:50,1:50,2:50}
 
 
 
@@ -661,13 +661,13 @@ def main(density,l,w,toytop):
 
         # number of eNodeBs
 	#n = int(math.floor((l*w)*density + 0.5))
-	n = 10
+	n = [10,20,30]
 	print(n)
 	j = 0
 	k = 0;
 	for i in range(operators):
 		Op = Operator(i)
-		temp_coords = gen_eNbs_coord(n,l,w)
+		temp_coords = gen_eNbs_coord(n[i],l,w)
 		Op.add_eNBs(temp_coords,j)
 		j += len(temp_coords)
 
@@ -819,8 +819,7 @@ def main(density,l,w,toytop):
 			i += 1
 
 
-
-	f = open('results.csv','w')
+	f = open('results.dat','w')
 	for u in results:
 		for i in range(len(results[u])):
 			f.write(str(results[u][i]))
