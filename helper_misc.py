@@ -87,7 +87,7 @@ def plot_graph(outputDir,filename,i_map,enb_coord,u_m,UEs,l,w):
 	#plot topology using Matlab/Octave
 	pf = open(outputDir + filename + '.m','w')
 
-	enbPerOpretor = 15
+	enbPerOpretor = 5
 
 	num = len(enb_coord)
 	pf.write('clr = hsv('+str(num/enbPerOpretor)+');\n')

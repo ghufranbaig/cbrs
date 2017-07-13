@@ -11,6 +11,8 @@ from max_min import WMMF
 from Fermi import Fermi_RZ
 from Fermi import Fermi_UE
 from Fermi import Fermi_Pre_Alloc
+from Fermi import getCliques
+from Fermi import FermiPreCompute
 from helper_misc import *
 import numpy as np
 
@@ -43,7 +45,7 @@ Noise = 1.65959e-19
 dist_thresh = 180
 cqi_thresh = 3
 
-info2 = open('temp.txt','w')
+info2 = open('convergence.txt','a')
 
 
 
@@ -85,6 +87,10 @@ def prop_model(d,P_t):
 	d = d/1000.0;
 	h_b = 30.0;
 	h_m = 5.0;
+
+	if (d == 0):
+		d = 1
+
 	A_f = 92.4+20*math.log10(d)+20*math.log10(f);
 	A_bm = 20.41+9.83*math.log10(d)+7.894*math.log10(f)+9.56*(math.log10(f))**2;
 	G_t = math.log10(h_b/200)*(13.958+5.78*(math.log10(d))**2);
@@ -148,12 +154,17 @@ def gen_ue_coord(enb,l,w,rad_i,rad_o):
 		if ((x>0 and x<l) and (y>0 and y<w)):
 			return(x,y)
 
-def gen_ue_coord(n,l,w):
+def gen_ue_coord(n,l,w,Op):
 	coord = []
-	for i in range (n):
+	ues = 0
+	while(ues < n):
 		x=random.randint(0,l)
 		y=random.randint(0,w)
-		coord.append((x,y))
+		for e in Op.eNBs:
+			if (dist(e.coords,(x,y)) < 50):
+				coord.append((x,y))
+				ues += 1
+				break
 	return coord
 
 def max_interferer(interferers,powers):
@@ -346,7 +357,7 @@ def FermiAllocations(UEs,u_m,G,load,N,info,comp,logging=False):
 
 		return (Assign,Allocated_share,assign_grid)
 
-def FermiAllocationsSimple(UEs,G,load,N):
+def FermiAllocationsSimple(UEs,FermiIntfMap,load,N):
 		assign = []
 		alloc = []
 		assign_grid = {}
@@ -356,8 +367,8 @@ def FermiAllocationsSimple(UEs,G,load,N):
 
 
                 # Main calculation
-		for c_map in G:
-			(channel_assignment,allocated_share) = Fermi(c_map,load,N)
+		for c_map in FermiIntfMap:
+			(channel_assignment,allocated_share) = FermiPreCompute(c_map[0],load,N,c_map[1],c_map[2],c_map[3])
 			assign.append(channel_assignment)
 			alloc.append(allocated_share)
 			#assign_us.append(KlogN(c_map,W,N))
@@ -375,9 +386,9 @@ def FermiAllocationsSimple(UEs,G,load,N):
 					assign_grid[a][j] = 1
 
 			Allocated_share[a] = share
-		info2.write(str(load))
-		info2.write('\n\n')
-		writeInfo('FERMI',Assign,Allocated_share,Allocated_share,info2)
+		#info2.write(str(load))
+		#info2.write('\n\n')
+		#writeInfo('FERMI',Assign,Allocated_share,Allocated_share,info2)
 
 		return (Assign,Allocated_share,assign_grid)
  
@@ -398,18 +409,6 @@ def getSNR(N,assignment,Rx_power,enb,j):
 		SNR.append(snr)
 	return SNR
 
-
-def run_single (UEs,N,UE_activity,Rx_power,assignment,step):
-	curr_rates = {}
-	for enb in UEs:
-		curr_rates[enb] = {}
-		for j in range(len(UEs[enb])):
-			if (UE_activity[enb][j][step] == 0):
-				curr_rates[enb][j] = []
-			else:
-				curr_rates[enb][j] = getSNR(N,assignment,Rx_power,enb,j)
-	#print curr_rates
-	return curr_rates
 
 def process_activity(activity):
 	processed = {}
@@ -674,8 +673,10 @@ def run_creditBased2b (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,Oper
 
 def getUtility(UE_activity,operators,ac):
 	utils = {}
+	zeroThroughput = {}
 	for op in operators:
 		utility = 0	
+		zeroThroughput[op.ID] = 0
 		for e in op.eNBs:
 			enb = e.ID
 			active_ue = 0
@@ -686,32 +687,42 @@ def getUtility(UE_activity,operators,ac):
 						effi += ef
 				if (effi == 0 and UE_activity[enb][ue][0] == 1):
 					utility += -100
+					zeroThroughput[op.ID] += 1
 				elif(effi != 0):
 					utility += math.log(effi)
 		utils[op.ID] = utility
-	return utils
-		#if (load[enb] != 0 and FERMIshare[enb] == 0):
-		#	availableCredit.append(enb)
+	return (utils,zeroThroughput)
 
-	return utility
 
-def getUtilityForOp(UEs,G,load,N,UE_activity,Rx_power,op):
-	(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocationsSimple(UEs,deepcopy(G),deepcopy(load),N)
-	ac = run_single (UEs,N,UE_activity,Rx_power,assign_grid,0)
-	util = getUtility(UE_activity,[op],ac)
+def run_single (UEs,N,UE_activity,Rx_power,assignment,step):
+	curr_rates = {}
+	for enb in UEs:
+		curr_rates[enb] = {}
+		for j in range(len(UEs[enb])):
+			if (UE_activity[enb][j][step] == 0):
+				curr_rates[enb][j] = []
+			else:
+				curr_rates[enb][j] = getSNR(N,assignment,Rx_power,enb,j)
+	#print curr_rates
+	return curr_rates
+
+def getUtilityForOp(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op,t):
+	(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocationsSimple(UEs,FermiIntfMap,deepcopy(load),N)
+	ac = run_single (UEs,N,UE_activity,Rx_power,assign_grid,t)
+	(util,zeroThroughput) = getUtility(UE_activity,[op],ac)
 	return util[op.ID]
 
-def getAllUtil(UEs,G,load,N,UE_activity,Rx_power,op):
-	(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocationsSimple(UEs,deepcopy(G),deepcopy(load),N)
-	ac = run_single (UEs,N,UE_activity,Rx_power,assign_grid,0)
-	util = getUtility(UE_activity,op,ac)
-	return util
+def getAllUtil(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op,t):
+	(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocationsSimple(UEs,FermiIntfMap,deepcopy(load),N)
+	ac = run_single (UEs,N,UE_activity,Rx_power,assign_grid,t)
+	(util,zeroThroughput) = getUtility(UE_activity,op,ac)
+	return (util,zeroThroughput)
 
-def find_max_grad(UEs,G,load,N,UE_activity,Rx_power,op, utility):
-	print 'Finding Max grad direction'
-	print 'Utility to beat:', utility
+def find_max_grad(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op, utility,t):
+	#print 'Finding Max grad direction'
+	#print 'Utility to beat:', utility
 	#print load
-	step = 1
+	delta = 1
 	E1 = 0
 	E2 = 0
 	util = utility
@@ -720,17 +731,17 @@ def find_max_grad(UEs,G,load,N,UE_activity,Rx_power,op, utility):
 		for e2 in op.eNBs:
 			if (e1.ID == e2.ID):
 				continue
-			if (load[e1.ID] <= step):
+			if (load[e1.ID] <= delta):
 				continue
 			if (load[e2.ID] == 0):
 				continue
 
 			newLoad = deepcopy(load)
-			newLoad[e1.ID] -= step
-			newLoad[e2.ID] += step
+			newLoad[e1.ID] -= delta
+			newLoad[e2.ID] += delta
 			#toprint = {x:newLoad[x] for x in range(0,10)}
-			newutility = getUtilityForOp(UEs,G,newLoad,N,UE_activity,Rx_power,op)
-			print e1.ID, '->', e2.ID, ':', newutility
+			newutility = getUtilityForOp(UEs,FermiIntfMap,newLoad,N,UE_activity,Rx_power,op,t)
+			#print e1.ID, '->', e2.ID, ':', newutility
 			#print toprint
 			#print ''
 
@@ -740,27 +751,27 @@ def find_max_grad(UEs,G,load,N,UE_activity,Rx_power,op, utility):
 				util = newutility
 				optimalLoad = deepcopy(newLoad)
 				print 'new max', util
-	print '\n\n'
 	return (E1,E2,optimalLoad,util)
 
 
-def maximizeUtility(UEs,G,load,N,UE_activity,Rx_power,op):
-	utility = getUtilityForOp(UEs,G,load,N,UE_activity,Rx_power,op)
+def maximizeUtility(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op,t):
+	utility = getUtilityForOp(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op,t)
 	print utility
-	step = 1
+	delta = 1
+	changed_utility = 0
 	
 	while (1):
-		(E1,E2,optimalLoad,utility) = find_max_grad(UEs,G,deepcopy(load),N,UE_activity,Rx_power,op, utility)
+		(E1,E2,optimalLoad,utility) = find_max_grad(UEs,FermiIntfMap,deepcopy(load),N,UE_activity,Rx_power,op, utility,t)
 		if (E1 == E2):
 			break
-
+		changed_utility = 1
 		load = optimalLoad
-		print 'Iterating on the max gradient', E1 ,'->', E2
-		while (load[E1] > step):
+		#print 'Iterating on the max gradient', E1 ,'->', E2
+		while (load[E1] > delta):
 			nload = deepcopy(load)
-			nload[E1] -= step
-			nload[E2] += step
-			newutility = getUtilityForOp(UEs,G,nload,N,UE_activity,Rx_power,op)
+			nload[E1] -= delta
+			nload[E2] += delta
+			newutility = getUtilityForOp(UEs,FermiIntfMap,nload,N,UE_activity,Rx_power,op,t)
 			if(newutility <= utility):
 				break
 			utility = newutility
@@ -769,14 +780,20 @@ def maximizeUtility(UEs,G,load,N,UE_activity,Rx_power,op):
 		print '\n\n'
 	
 	print 'Final Utility = ', utility
-	return load
+	return (load,changed_utility)
 
 def run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,Operators):
 	activity = []
+	util_thresh = 1e-5
 
+	All_util = []
 	credit = {}
 	for op in Operators:
 		credit[op] = float(len(op.UEs))
+
+	FermiIntfMap = []
+	for m in G:
+		FermiIntfMap.append(getCliques(m))
 
 
 	load = {}
@@ -796,13 +813,51 @@ def run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,
 			tot_active = 0
 			for enb in op.eNBs:
 				load[enb.ID] = int(credit[op]*load[enb.ID]/op_active_users[op])
-		#print load
+		#print load			
+		(origUtil,zeroUe) = getAllUtil(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,Operators,i)
+		#info2.write('Orig: \n')
+		#info2.write(str(load)+'\n')
+		info2.write(str(origUtil)+'\n')
+		#info2.write(str(zeroUe)+'\n')
+		All_util.append(origUtil)
+		finalLoad = {}
+		prevUtil = origUtil
+		for it in range(40):
+			#anyChanged = 0
+			print str(it)+'th iteration'
+			for op in Operators:
+				print op.ID, 'Optimizing'
+				(nload,changed) = maximizeUtility(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op,i)
+				(newUtil,zeroUe) = getAllUtil(UEs,FermiIntfMap,nload,N,UE_activity,Rx_power,Operators,i)
+				for e in op.eNBs:
+					finalLoad[e.ID] = nload[e.ID]
+				load = nload
+				All_util.append(newUtil)
+				#anyChanged += changed
+			#(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocations(UEs,u_m,deepcopy(G),load,N,info,comp)
+			#run_single (UEs,N,UE_activity,Rx_power,assign_grid,i)
 
-		load = maximizeUtility(UEs,G,load,N,UE_activity,Rx_power,Operators[0])
-		#(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocations(UEs,u_m,deepcopy(G),load,N,info,comp)
-		#run_single (UEs,N,UE_activity,Rx_power,assign_grid,i)
+				#print 'Orig: ', origUtil
+				#print 'New:',op.ID, newUtil
+				#info2.write(str(op.ID) + ' Optimizes \n')
+				#info2.write(str(nload) + '\n')
+				info2.write(str(newUtil) + '\n')
+				#info2.write(str(zeroUe) + '\n')
+			#(finalUtil,finalzeroUe) = getAllUtil(UEs,FermiIntfMap,finalLoad,N,UE_activity,Rx_power,Operators,i)
 
-	return process_activity(activity)
+			anyChanged = 0
+			for o in prevUtil:
+				if (abs(prevUtil[o] - newUtil[o]) > util_thresh):
+					anyChanged = 1
+			if (anyChanged == 0):
+				break
+			prevUtil = newUtil
+			#info2.write('Everyone Optimizes \n')
+			#info2.write(str(finalLoad) + '\n')
+			#info2.write(str(finalUtil)+'\n')
+			#info2.write(str(finalzeroUe)+'\n')
+			#info2.write('\n\n')
+	return All_util
 
 def main(density,l,w,toytop):
 
@@ -829,7 +884,7 @@ def main(density,l,w,toytop):
 
         # number of eNodeBs
 	#n = int(math.floor((l*w)*density + 0.5))
-	n = [5,20,30]
+	n = [10,10,10]
 	print(n)
 	j = 0
 	k = 0;
@@ -839,7 +894,7 @@ def main(density,l,w,toytop):
 		Op.add_eNBs(temp_coords,j)
 		j += len(temp_coords)
 
-		temp_coords = gen_ue_coord(usersPerOperator[i],l,w)
+		temp_coords = gen_ue_coord(usersPerOperator[i],l,w,Op)
 		Op.add_UEs(temp_coords,k)
 		k += len(temp_coords)
 		Op.assignUestoeNBs()
@@ -986,19 +1041,20 @@ def main(density,l,w,toytop):
 	# 		results[i].append(res[e][u])
 	# 		i += 1
 
-	run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower,Operators)
+	All_util = run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower,Operators)
 	#res = run_ideal (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower)
 
 	f = open('results.dat','w')
-	for u in results:
-		for i in range(len(results[u])):
-			f.write(str(results[u][i]))
-			if (i == len(results[u])-1):
+	#print All_util
+	for i in range(len(All_util)):
+		for j in range(len(Operators)):
+			f.write(str(All_util[i][j]))
+			if (j == len(Operators)-1):
 				f.write('\n')
 			else:
 				f.write(',')
 	f.close()
-
+	os.system('octave plotUtils.m')
 
 
 
@@ -1011,23 +1067,21 @@ def main(density,l,w,toytop):
 
 
 	plot_graph(outputDir,'interferencemap', i_map, enb_coord, u_m, UEs,l,w)
-	#os.system('octave ' + outputDir + 'interferencemap.m')
+	os.system('octave ' + outputDir + 'interferencemap.m')
 	#plot_ue_interference(outputDir,'UEinterferencemap', edges, enb_coord, u_m, UEs,l, w)
 	#os.system('octave ' + outputDir + 'UEinterferencemap.m')
 
 
 # Body, generating scripts
 #os.system('mkdir ' + outputDir)
-for z in range(7,8):
-	l = 400
-	w = 400
-	#os.system('mkdir -p res')
-	#os.system('mkdir -p generated-ns3-scripts')
-	dens = float(8)/(l*w)
-	for a in range(0,1):
+for z in range(1,2):
+	l = 300
+	w = 300
+	info2.write(str(z)+'\n')
+	main(1,l,w,3)
 	#for a in [1]:
 		#os.system('echo '+str(a)+' >> comparison.txt')
-		main(dens,l,w,3)
+		#main(dens,l,w,3)
 		#main(dens,l,w,a)
 
 		#os.system('mkdir res/'+str(a))
@@ -1041,3 +1095,4 @@ for z in range(7,8):
 		#os.system('mv res/WiFitopo.cc res/'+str(a)+'/WiFi.cc')
 
 	#os.system('mv comparison.txt res/'+str(z)+'/comparison.txt')
+info2.close()

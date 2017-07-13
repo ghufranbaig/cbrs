@@ -568,9 +568,26 @@ def ReclaimSC(Assign,N,C,IsClass1,i_map):
 	return Reclaim
 
 
-
-
+def getCliques(i_map):
+	(i_map_,fill_in) = Triangulation (deepcopy(i_map))
+	C = cliques(i_map_)
+	for c in C:
+		c.sort()
+	C.sort()
+	return (i_map,i_map_,fill_in,C)
 # Main function
+
+def FermiPreCompute(i_map,load,N,i_map_,fill_in,C):
+	#print (C)
+	Alloc = Allocate(i_map_,load,N,deepcopy(C))
+
+	#print(Alloc)
+	Assign = Assignment(Alloc,N,deepcopy(C))
+
+	Res = Restoration(Assign,fill_in,i_map,N)
+
+	return (Res,Alloc)
+
 def Fermi(i_map,load,N):
 
 	(i_map_,fill_in) = Triangulation (deepcopy(i_map))
