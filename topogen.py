@@ -822,7 +822,7 @@ def run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,
 		All_util.append(origUtil)
 		finalLoad = {}
 		prevUtil = origUtil
-		for it in range(40):
+		for it in range(100):
 			#anyChanged = 0
 			print str(it)+'th iteration'
 			for op in Operators:
