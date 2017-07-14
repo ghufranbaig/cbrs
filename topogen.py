@@ -884,7 +884,7 @@ def main(density,l,w,toytop):
 
         # number of eNodeBs
 	#n = int(math.floor((l*w)*density + 0.5))
-	n = [20,20,20]
+	n = [2,2,2]
 	print(n)
 	j = 0
 	k = 0;
