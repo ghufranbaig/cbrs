@@ -884,7 +884,7 @@ def main(density,l,w,toytop):
 
         # number of eNodeBs
 	#n = int(math.floor((l*w)*density + 0.5))
-	n = [10,10,10]
+	n = [20,20,20]
 	print(n)
 	j = 0
 	k = 0;
@@ -1074,11 +1074,14 @@ def main(density,l,w,toytop):
 
 # Body, generating scripts
 #os.system('mkdir ' + outputDir)
-for z in range(1,2):
-	l = 300
-	w = 300
+for z in range(1,5):
+	l = 500
+	w = 500
 	info2.write(str(z)+'\n')
 	main(1,l,w,3)
+	os.system('mv res/utils.jpg res/utils_'+str(z)+'.jpg')
+	os.system('mv res/interferencemap.jpg res/interferencemap_'+str(z)+'.jpg')
+
 	#for a in [1]:
 		#os.system('echo '+str(a)+' >> comparison.txt')
 		#main(dens,l,w,3)
