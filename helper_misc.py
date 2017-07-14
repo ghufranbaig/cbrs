@@ -83,11 +83,11 @@ def writegeneralInfo(info,enb_coord,ue_list_to_print,UEs,load,i_map,i_map_dir,ue
 
 
 # Plot functions
-def plot_graph(outputDir,filename,i_map,enb_coord,u_m,UEs,l,w):
+def plot_graph(outputDir,filename,i_map,enb_coord,u_m,UEs,l,w,enbPerOpretor):
 	#plot topology using Matlab/Octave
 	pf = open(outputDir + filename + '.m','w')
 
-	enbPerOpretor = 2
+	#enbPerOpretor = 20
 
 	num = len(enb_coord)
 	pf.write('clr = hsv('+str(num/enbPerOpretor)+');\n')

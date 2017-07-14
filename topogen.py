@@ -884,13 +884,13 @@ def main(density,l,w,toytop):
 
         # number of eNodeBs
 	#n = int(math.floor((l*w)*density + 0.5))
-	n = [2,2,2]
-	print(n)
+	npo = [20,20,20]
+	print(npo)
 	j = 0
 	k = 0;
 	for i in range(operators):
 		Op = Operator(i)
-		temp_coords = gen_eNbs_coord(n[i],l,w)
+		temp_coords = gen_eNbs_coord(npo[i],l,w)
 		Op.add_eNBs(temp_coords,j)
 		j += len(temp_coords)
 
@@ -1066,7 +1066,7 @@ def main(density,l,w,toytop):
 	comp.close()
 
 
-	plot_graph(outputDir,'interferencemap', i_map, enb_coord, u_m, UEs,l,w)
+	plot_graph(outputDir,'interferencemap', i_map, enb_coord, u_m, UEs,l,w,npo[0])
 	os.system('octave ' + outputDir + 'interferencemap.m')
 	#plot_ue_interference(outputDir,'UEinterferencemap', edges, enb_coord, u_m, UEs,l, w)
 	#os.system('octave ' + outputDir + 'UEinterferencemap.m')
@@ -1074,7 +1074,7 @@ def main(density,l,w,toytop):
 
 # Body, generating scripts
 #os.system('mkdir ' + outputDir)
-for z in range(1,5):
+for z in range(10):
 	l = 500
 	w = 500
 	info2.write(str(z)+'\n')
