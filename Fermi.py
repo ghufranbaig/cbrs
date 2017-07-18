@@ -336,9 +336,7 @@ def allocate_sub_chan(v,sub_channels,alloc):
 	start = find_unalloc(sub_channels,0)
 	blks_avail = []
 	while (start != -1) :
-
 		blk = find_unalloc_block(sub_channels,start)
-
 		if (blk[1]-blk[0]+1) >= alloc :
 			return [(blk[0],blk[0]+alloc-1)]
 		blks_avail.append(blk)
@@ -347,16 +345,23 @@ def allocate_sub_chan(v,sub_channels,alloc):
 	assigned = []
 	while not (rem == 0 or len(blks_avail)==0):
 		blk = get_max_blk(blks_avail)
-		assigned.append(blk)
-		blks_avail.remove(blk)
-		rem -= blk[1]-blk[0]+1
+		if (blk[1]-blk[0]+1 < rem):
+			assigned.append(blk)
+			blks_avail.remove(blk)
+			rem -= blk[1]-blk[0]+1
+		else:
+			assigned.append((blk[0],blk[0]+rem-1))
+			rem = 0
+			break
 	return assigned
 		
 
 def color_channel(assigned,subchannels):
+	clrd = 0
 	for block in assigned:
 		for i in range(block[0],block[1]+1):
 			subchannels[i] = 1
+			clrd += 1
 	return subchannels
 
 def makeTree(root,C):
@@ -396,12 +401,24 @@ def Assignment(Alloc,N,C):
 		subchannels = [0 for i in range(N)]
 		for ch in curr_node.children:
 			q.put(ch)
+
+
+		#Alc = 0
 		for v in curr_node.data:
 			if v in Assign:
 				subchannels = color_channel(Assign[v],subchannels)
+				#alc = 0
+				#for blk in Assign[v]:
+				#	alc += blk[1]-blk[0]+1
+				#if (alc > Alloc[v]):
+				#	print v, 'allocated more', Alloc[v], alc
+				#Alc += alc
+		
+
 		for v in curr_node.data:
 			if v in U:
 				Assign[v]=allocate_sub_chan(v,subchannels,Alloc[v]) 
+
 				U.remove(v)
 				subchannels = color_channel(Assign[v],subchannels)
 	return Assign
@@ -571,9 +588,9 @@ def ReclaimSC(Assign,N,C,IsClass1,i_map):
 def getCliques(i_map):
 	(i_map_,fill_in) = Triangulation (deepcopy(i_map))
 	C = cliques(i_map_)
-	for c in C:
-		c.sort()
-	C.sort()
+	#for c in C:
+	#	c.sort()
+	#C.sort()
 	return (i_map,i_map_,fill_in,C)
 # Main function
 
@@ -581,11 +598,13 @@ def FermiPreCompute(i_map,load,N,i_map_,fill_in,C):
 	#print (C)
 	Alloc = Allocate(i_map_,load,N,deepcopy(C))
 
+
+
 	#print(Alloc)
 	Assign = Assignment(Alloc,N,deepcopy(C))
 
 	Res = Restoration(Assign,fill_in,i_map,N)
-
+	#Res = Assign
 	return (Res,Alloc)
 
 def Fermi(i_map,load,N):

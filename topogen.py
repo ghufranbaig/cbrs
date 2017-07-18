@@ -45,10 +45,6 @@ Noise = 1.65959e-19
 dist_thresh = 180
 cqi_thresh = 3
 
-info2 = open('convergence.txt','a')
-
-
-
 def dist(a,b):
 	x = a[0] - b[0]
 	y = a[1] - b[1]
@@ -365,7 +361,6 @@ def FermiAllocationsSimple(UEs,FermiIntfMap,load,N):
 		for enb in UEs:
 			assign_grid[enb] = [0]*N
 
-
                 # Main calculation
 		for c_map in FermiIntfMap:
 			(channel_assignment,allocated_share) = FermiPreCompute(c_map[0],load,N,c_map[1],c_map[2],c_map[3])
@@ -376,6 +371,16 @@ def FermiAllocationsSimple(UEs,FermiIntfMap,load,N):
 		Assign = {}
 		for a in assign:
 			Assign.update(a)
+
+
+
+		Alloc_actual = {}
+		for a in alloc:
+			Alloc_actual.update(a)
+
+
+
+
 		Allocated_share = {}
 		for a in Assign:
 			share = 0
@@ -386,8 +391,10 @@ def FermiAllocationsSimple(UEs,FermiIntfMap,load,N):
 					assign_grid[a][j] = 1
 
 			Allocated_share[a] = share
+			#if (load[a] != 0 and Allocated_share[a] == 0):
+			#	print a, 'Something Wrong', Alloc_actual[a]
 		#info2.write(str(load))
-		#info2.write('\n\n')
+		#info2.write('\n')
 		#writeInfo('FERMI',Assign,Allocated_share,Allocated_share,info2)
 
 		return (Assign,Allocated_share,assign_grid)
@@ -862,7 +869,7 @@ def run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,
 def main(density,l,w,toytop):
 
         # number of sub-channels
-	N = int(math.ceil(bw / rbgsize))
+	N = 25 #int(math.ceil(bw / rbgsize))
 	print N
 	operators = 3
 	operator_enbs = {}
@@ -884,7 +891,7 @@ def main(density,l,w,toytop):
 
         # number of eNodeBs
 	#n = int(math.floor((l*w)*density + 0.5))
-	npo = [20,20,20]
+	npo = [10,10,10]
 	print(npo)
 	j = 0
 	k = 0;
@@ -975,7 +982,7 @@ def main(density,l,w,toytop):
 
         # Finds connected components withing i_map directional graph
 	G = connected_graphs(i_map)
-	N = int(math.ceil(bw / rbgsize))
+	#N = int(math.ceil(bw / rbgsize))
 
 
 	writegeneralInfo(info,enb_coord,ue_list_to_print,UEs,load,i_map,i_map,{},{},G,u_m)
@@ -1041,9 +1048,10 @@ def main(density,l,w,toytop):
 	# 		results[i].append(res[e][u])
 	# 		i += 1
 
-	All_util = run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower,Operators)
 	#res = run_ideal (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower)
 
+	
+	All_util = run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower,Operators)
 	f = open('results.dat','w')
 	#print All_util
 	for i in range(len(All_util)):
@@ -1055,6 +1063,8 @@ def main(density,l,w,toytop):
 				f.write(',')
 	f.close()
 	os.system('octave plotUtils.m')
+	
+
 
 
 
@@ -1071,16 +1081,19 @@ def main(density,l,w,toytop):
 	#plot_ue_interference(outputDir,'UEinterferencemap', edges, enb_coord, u_m, UEs,l, w)
 	#os.system('octave ' + outputDir + 'UEinterferencemap.m')
 
+info2 = open('convergence.txt','w')
+
 
 # Body, generating scripts
 #os.system('mkdir ' + outputDir)
-for z in range(10):
-	l = 500
-	w = 500
+for z in range(1):
+	l = 300
+	w = 300
 	info2.write(str(z)+'\n')
 	main(1,l,w,3)
 	os.system('mv res/utils.jpg res/utils_'+str(z)+'.jpg')
 	os.system('mv res/interferencemap.jpg res/interferencemap_'+str(z)+'.jpg')
+	os.system('mv convergence.txt res/convergence_'+str(z)+'.txt')
 
 	#for a in [1]:
 		#os.system('echo '+str(a)+' >> comparison.txt')
