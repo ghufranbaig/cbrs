@@ -869,7 +869,7 @@ def run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,
 def main(density,l,w,toytop):
 
         # number of sub-channels
-	N = 25 #int(math.ceil(bw / rbgsize))
+	N = 100 #int(math.ceil(bw / rbgsize))
 	print N
 	operators = 3
 	operator_enbs = {}
