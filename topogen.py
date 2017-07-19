@@ -787,7 +787,7 @@ def maximizeUtility(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op,t):
 			print utility
 			load = nload
 		print '\n\n'
-		it += 1
+		#it += 1
 	
 	print 'Final Utility = ', utility
 	return (load,changed_utility)
@@ -804,6 +804,7 @@ def run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,
 	FermiIntfMap = []
 	for m in G:
 		FermiIntfMap.append(getCliques(m))
+	#print 'C', FermiIntfMap[0][0]
 
 
 	load = {}
@@ -832,7 +833,7 @@ def run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,
 		All_util.append(origUtil)
 		finalLoad = {}
 		prevUtil = origUtil
-		for it in range(100):
+		for it in range(1):
 			#anyChanged = 0
 			print str(it)+'th iteration'
 			for op in Operators:
@@ -841,7 +842,7 @@ def run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,
 				(newUtil,zeroUe) = getAllUtil(UEs,FermiIntfMap,nload,N,UE_activity,Rx_power,Operators,i)
 				for e in op.eNBs:
 					finalLoad[e.ID] = nload[e.ID]
-				load = nload
+				#load = nload
 				All_util.append(newUtil)
 				#anyChanged += changed
 			#(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocations(UEs,u_m,deepcopy(G),load,N,info,comp)
@@ -894,7 +895,7 @@ def main(density,l,w,toytop):
 
         # number of eNodeBs
 	#n = int(math.floor((l*w)*density + 0.5))
-	npo = [10,10,10]
+	npo = [20,20,20]
 	print(npo)
 	j = 0
 	k = 0;
@@ -1090,8 +1091,8 @@ info2 = open('convergence.txt','w')
 # Body, generating scripts
 #os.system('mkdir ' + outputDir)
 for z in range(10):
-	l = 300
-	w = 300
+	l = 500
+	w = 500
 	info2.write(str(z)+'\n')
 	main(1,l,w,3)
 	os.system('mv res/utils.jpg res/utils_'+str(z)+'.jpg')

@@ -424,6 +424,99 @@ def Assignment(Alloc,N,C):
 	return Assign
 
 
+def Assignment(Alloc,N,C):
+	
+	root = Node(C[-1])
+	C.remove(C[-1])
+	tree = makeTree(root,C)	
+	
+	Assign = {}
+	subchannels = [0 for i in range(N)]
+	q = Q.Queue()
+	q.put(tree)
+	U = list(Alloc.keys())
+
+	prefSubchannels = {}
+	for e in U:
+		prefSubchannels[e] = [0 for i in range(N)]
+
+	while (q.empty() == False):
+		curr_node = q.get()
+		subchannels = [0 for i in range(N)]
+		for ch in curr_node.children:
+			q.put(ch)
+
+
+		#Alc = 0
+		for v in curr_node.data:
+			if v in Assign:
+				subchannels = color_channel(Assign[v],subchannels)
+				#alc = 0
+				#for blk in Assign[v]:
+				#	alc += blk[1]-blk[0]+1
+				#if (alc > Alloc[v]):
+				#	print v, 'allocated more', Alloc[v], alc
+				#Alc += alc
+		
+
+		for v in curr_node.data:
+			if v in U:
+				Assign[v]=allocate_sub_chan(v,subchannels,Alloc[v]) 
+				U.remove(v)
+				subchannels = color_channel(Assign[v],subchannels)
+	return Assign
+
+
+def Assignment2(Alloc,N,C,i_map,eNBtoOp):
+	
+	root = Node(C[-1])
+	C.remove(C[-1])
+	tree = makeTree(root,C)	
+	
+	Assign = {}
+	subchannels = [0 for i in range(N)]
+	q = Q.Queue()
+	q.put(tree)
+	U = list(Alloc.keys())
+
+	prefSubchannels = {}
+	for e in U:
+		prefSubchannels[e] = [0 for i in range(N)]
+
+	while (q.empty() == False):
+		curr_node = q.get()
+		subchannels = [0 for i in range(N)]
+		for ch in curr_node.children:
+			q.put(ch)
+
+
+		#Alc = 0
+		for v in curr_node.data:
+			if v in Assign:
+				subchannels = color_channel(Assign[v],subchannels)
+				#alc = 0
+				#for blk in Assign[v]:
+				#	alc += blk[1]-blk[0]+1
+				#if (alc > Alloc[v]):
+				#	print v, 'allocated more', Alloc[v], alc
+				#Alc += alc
+		
+
+		for v in curr_node.data:
+			if v in U:
+				Assign[v]=allocate_sub_chan(v,subchannels,Alloc[v]) 
+				U.remove(v)
+
+				for n in i_map[v]:
+					if (eNBtoOp[v] == eNBtoOp[n]):
+						for e in i_map[v]:
+							if (eNBtoOp[e] != eNBtoOp[n]):
+								prefSubchannels[e] = color_channel(Assign[v],prefSubchannels[e])
+
+				subchannels = color_channel(Assign[v],subchannels)
+	return Assign
+
+
 # Second part of step 2 of Algorithm 1 in Fermi, summarized in the text
 # Assignes the actual channels based on previously calculated shares
 # Input:
