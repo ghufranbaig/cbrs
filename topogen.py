@@ -767,7 +767,9 @@ def maximizeUtility(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op,t):
 	delta = 1
 	changed_utility = 0
 	
-	while (1):
+	it = 0
+
+	while (it < 2):
 		(E1,E2,optimalLoad,utility) = find_max_grad(UEs,FermiIntfMap,deepcopy(load),N,UE_activity,Rx_power,op, utility,t)
 		if (E1 == E2):
 			break
@@ -785,6 +787,7 @@ def maximizeUtility(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op,t):
 			print utility
 			load = nload
 		print '\n\n'
+		it += 1
 	
 	print 'Final Utility = ', utility
 	return (load,changed_utility)
@@ -1086,7 +1089,7 @@ info2 = open('convergence.txt','w')
 
 # Body, generating scripts
 #os.system('mkdir ' + outputDir)
-for z in range(1):
+for z in range(10):
 	l = 300
 	w = 300
 	info2.write(str(z)+'\n')
