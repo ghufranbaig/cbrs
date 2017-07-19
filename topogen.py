@@ -1096,7 +1096,6 @@ for z in range(10):
 	main(1,l,w,3)
 	os.system('mv res/utils.jpg res/utils_'+str(z)+'.jpg')
 	os.system('mv res/interferencemap.jpg res/interferencemap_'+str(z)+'.jpg')
-	os.system('mv convergence.txt res/convergence_'+str(z)+'.txt')
 
 	#for a in [1]:
 		#os.system('echo '+str(a)+' >> comparison.txt')
@@ -1114,4 +1113,5 @@ for z in range(10):
 		#os.system('mv res/WiFitopo.cc res/'+str(a)+'/WiFi.cc')
 
 	#os.system('mv comparison.txt res/'+str(z)+'/comparison.txt')
+os.system('mv convergence.txt res/convergence_'+str(z)+'.txt')
 info2.close()
