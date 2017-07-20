@@ -723,7 +723,7 @@ def getAllUtil(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op,t):
 	(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocationsSimple(UEs,FermiIntfMap,deepcopy(load),N)
 	ac = run_single (UEs,N,UE_activity,Rx_power,assign_grid,t)
 	(util,zeroThroughput) = getUtility(UE_activity,op,ac)
-	return (util,zeroThroughput)
+	return (util,ac)
 
 def find_max_grad(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op, utility,t):
 	#print 'Finding Max grad direction'
@@ -797,6 +797,7 @@ def run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,
 	util_thresh = 1e-5
 
 	All_util = []
+	All_tput = []
 	credit = {}
 	for op in Operators:
 		credit[op] = float(len(op.UEs))
@@ -825,25 +826,29 @@ def run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,
 			for enb in op.eNBs:
 				load[enb.ID] = int(credit[op]*load[enb.ID]/op_active_users[op])
 		#print load			
-		(origUtil,zeroUe) = getAllUtil(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,Operators,i)
+		(origUtil,thrupt) = getAllUtil(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,Operators,i)
 		#info2.write('Orig: \n')
 		#info2.write(str(load)+'\n')
 		info2.write(str(origUtil)+'\n')
 		#info2.write(str(zeroUe)+'\n')
 		All_util.append(origUtil)
+		All_tput.append(thrupt)
 		finalLoad = {}
 		prevUtil = origUtil
 		for it in range(1):
 			#anyChanged = 0
 			print str(it)+'th iteration'
-			for op in Operators:
+			for m in range(len(Operators)):
+				j = (m + random.randint(0,4))%len(Operators)
+				op = Operators[j]
 				print op.ID, 'Optimizing'
 				(nload,changed) = maximizeUtility(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op,i)
-				(newUtil,zeroUe) = getAllUtil(UEs,FermiIntfMap,nload,N,UE_activity,Rx_power,Operators,i)
+				(newUtil,thrupt) = getAllUtil(UEs,FermiIntfMap,nload,N,UE_activity,Rx_power,Operators,i)
 				for e in op.eNBs:
 					finalLoad[e.ID] = nload[e.ID]
 				#load = nload
 				All_util.append(newUtil)
+				All_tput.append(thrupt)
 				#anyChanged += changed
 			#(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocations(UEs,u_m,deepcopy(G),load,N,info,comp)
 			#run_single (UEs,N,UE_activity,Rx_power,assign_grid,i)
@@ -868,7 +873,7 @@ def run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,
 			#info2.write(str(finalUtil)+'\n')
 			#info2.write(str(finalzeroUe)+'\n')
 			#info2.write('\n\n')
-	return All_util
+	return (All_util,All_tput)
 
 def main(density,l,w,toytop):
 
@@ -1068,14 +1073,6 @@ def main(density,l,w,toytop):
 	f.close()
 	os.system('octave plotUtils.m')
 	
-
-
-
-
-
-
-
-
 	info.close()
 	comp.close()
 

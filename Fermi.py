@@ -356,7 +356,7 @@ def allocate_sub_chan(v,sub_channels,alloc):
 	return assigned
 
 
-def allocate_sub_chan(v,sub_channels,alloc,prefSubchannels):
+def allocate_sub_chan2(v,sub_channels,alloc,prefSubchannels):
 
 	sub_channels2 = sub_channels[:]
 	assign1 = allocate_sub_chan(v,prefSubchannels,alloc)
@@ -517,7 +517,7 @@ def Assignment2(Alloc,N,C,i_map,eNBtoOp):
 
 		for v in curr_node.data:
 			if v in U:
-				Assign[v]=allocate_sub_chan(v,subchannels,Alloc[v],prefSubchannels[v]) 
+				Assign[v]=allocate_sub_chan2(v,subchannels,Alloc[v],prefSubchannels[v]) 
 				U.remove(v)
 
 				for n in i_map[v]:
@@ -703,11 +703,11 @@ def getCliques(i_map):
 def FermiPreCompute2(i_map,load,N,i_map_,fill_in,C,eNBtoOp):
 	#print (C)
 	Alloc = Allocate(i_map_,load,N,deepcopy(C))
-	Assign = Assignment2(Alloc,N,C,i_map,eNBtoOp):
+	Assign = Assignment2(Alloc,N,C,i_map,eNBtoOp)
 	Res = Restoration(Assign,fill_in,i_map,N)
 	return (Res,Alloc)
 
-def FermiPreCompute(i_map,load,N,i_map_,fill_in,C,eNBtoOp):
+def FermiPreCompute(i_map,load,N,i_map_,fill_in,C):
 	#print (C)
 	Alloc = Allocate(i_map_,load,N,deepcopy(C))
 
@@ -715,8 +715,6 @@ def FermiPreCompute(i_map,load,N,i_map_,fill_in,C,eNBtoOp):
 
 	#print(Alloc)
 	Assign = Assignment(Alloc,N,deepcopy(C))
-	Assign = Assignment2(Alloc,N,C,i_map,eNBtoOp):
-
 	Res = Restoration(Assign,fill_in,i_map,N)
 	#Res = Assign
 	return (Res,Alloc)
