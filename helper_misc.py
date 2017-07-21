@@ -90,11 +90,19 @@ def plot_graph(outputDir,filename,i_map,enb_coord,u_m,UEs,l,w,enbPerOpretor):
 	#enbPerOpretor = 20
 
 	num = len(enb_coord)
-	pf.write('clr = hsv('+str(num/enbPerOpretor)+');\n')
+	pf.write('clr = hsv('+str(len(enbPerOpretor))+');\n')
 	#pf.write("figure('Position',[-10,-10,"+str(l+10)+","+str(w+10)+"]);\n")
 	pf.write("f = figure('visible','off');\n") 
 	pf.write('hold on;\n')
 	delta = 1
+
+	eNBtoOP = {}
+	x = 0
+	for op in range(len(enbPerOpretor)):
+		for i in range(enbPerOpretor[op]):
+			eNBtoOP[x] = op
+			x+=1
+
 
 	for i in range(num):
 		for n in i_map[i]:
@@ -102,10 +110,10 @@ def plot_graph(outputDir,filename,i_map,enb_coord,u_m,UEs,l,w,enbPerOpretor):
 
 
 	for i in range(num):
-		pf.write('plot('+str(enb_coord[i][0])+','+str(enb_coord[i][1])+',\'o\',\'Color\',clr('+str(i/enbPerOpretor+1)+',:),\'LineWidth\',3);\n')
+		pf.write('plot('+str(enb_coord[i][0])+','+str(enb_coord[i][1])+',\'o\',\'Color\',clr('+str(eNBtoOP[i]+1)+',:),\'LineWidth\',3);\n')
 		pf.write('text('+str(enb_coord[i][0]-15)+','+str(enb_coord[i][1])+','+'"'+str(i)+'");\n')
 		for j in UEs[i]:
-			pf.write('plot('+str(j[0])+','+str(j[1])+',\'*\',\'Color\',clr('+str(i/enbPerOpretor+1)+',:),\'LineWidth\',1);\n')
+			pf.write('plot('+str(j[0])+','+str(j[1])+',\'*\',\'Color\',clr('+str(eNBtoOP[i]+1)+',:),\'LineWidth\',1);\n')
 			pf.write('text('+str(j[0]-10)+','+str(j[1])+','+'"'+str(u_m[j])+'","fontsize",5);\n')
 
 

@@ -719,17 +719,40 @@ def getUtilityForOp(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op,t):
 	(util,zeroThroughput) = getUtility(UE_activity,[op],ac)
 	return util[op.ID]
 
+def getTputs(ac,operators):
+	truputu = []
+	trupute = []
+	truputo = []
+	for op in operators:
+		effio = 0
+		for e in op.eNBs:
+			enb = e.ID
+			effie = 0
+			for ue in ac[enb]:
+				effi = 0
+				for ef in ac[enb][ue]:
+					if (ef != -1):
+						effi += ef
+						effie += ef
+						effio += ef
+				truputu.append(effi)
+			trupute.append(effie)
+		truputo.append(effio)
+	truput = (truputu,trupute,truputo)
+	return truput
+
 def getAllUtil(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op,t):
 	(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocationsSimple(UEs,FermiIntfMap,deepcopy(load),N)
 	ac = run_single (UEs,N,UE_activity,Rx_power,assign_grid,t)
 	(util,zeroThroughput) = getUtility(UE_activity,op,ac)
-	return (util,ac)
 
-def find_max_grad(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op, utility,t):
+	return (util,getTputs(ac,op))
+
+def find_max_grad(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op, utility,t, delta = 1):
 	#print 'Finding Max grad direction'
 	#print 'Utility to beat:', utility
 	#print load
-	delta = 1
+	
 	E1 = 0
 	E2 = 0
 	util = utility
@@ -761,16 +784,15 @@ def find_max_grad(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op, utility,t):
 	return (E1,E2,optimalLoad,util)
 
 
-def maximizeUtility(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op,t):
+def maximizeUtility(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op,t,delta = 1):
 	utility = getUtilityForOp(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op,t)
 	print utility
-	delta = 1
 	changed_utility = 0
 	
 	it = 0
 
-	while (it < 2):
-		(E1,E2,optimalLoad,utility) = find_max_grad(UEs,FermiIntfMap,deepcopy(load),N,UE_activity,Rx_power,op, utility,t)
+	while (True):
+		(E1,E2,optimalLoad,utility) = find_max_grad(UEs,FermiIntfMap,deepcopy(load),N,UE_activity,Rx_power,op, utility,t,delta)
 		if (E1 == E2):
 			break
 		changed_utility = 1
@@ -790,9 +812,9 @@ def maximizeUtility(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op,t):
 		#it += 1
 	
 	print 'Final Utility = ', utility
-	return (load,changed_utility)
+	return load
 
-def run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,Operators):
+def run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,Operators,iterations):
 	activity = []
 	util_thresh = 1e-5
 
@@ -827,39 +849,27 @@ def run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,
 				load[enb.ID] = int(credit[op]*load[enb.ID]/op_active_users[op])
 		#print load			
 		(origUtil,thrupt) = getAllUtil(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,Operators,i)
-		#info2.write('Orig: \n')
-		#info2.write(str(load)+'\n')
-		info2.write(str(origUtil)+'\n')
-		#info2.write(str(zeroUe)+'\n')
+
+		comp.write(str(origUtil)+'\n')
 		All_util.append(origUtil)
 		All_tput.append(thrupt)
-		finalLoad = {}
 		prevUtil = origUtil
-		for it in range(1):
-			#anyChanged = 0
+		delta = 1
+		for it in range(iterations):
 			print str(it)+'th iteration'
-			for m in range(len(Operators)):
-				j = (m + random.randint(0,4))%len(Operators)
+			order = range(len(Operators))
+			random.shuffle(order)
+			for j in order:
+				
 				op = Operators[j]
 				print op.ID, 'Optimizing'
-				(nload,changed) = maximizeUtility(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op,i)
+				nload = maximizeUtility(UEs,FermiIntfMap,load,N,UE_activity,Rx_power,op,i,delta)
 				(newUtil,thrupt) = getAllUtil(UEs,FermiIntfMap,nload,N,UE_activity,Rx_power,Operators,i)
-				for e in op.eNBs:
-					finalLoad[e.ID] = nload[e.ID]
-				#load = nload
+
+				load = nload
 				All_util.append(newUtil)
 				All_tput.append(thrupt)
-				#anyChanged += changed
-			#(Assign_FERMI,FERMIshare,assign_grid) = FermiAllocations(UEs,u_m,deepcopy(G),load,N,info,comp)
-			#run_single (UEs,N,UE_activity,Rx_power,assign_grid,i)
-
-				#print 'Orig: ', origUtil
-				#print 'New:',op.ID, newUtil
-				#info2.write(str(op.ID) + ' Optimizes \n')
-				#info2.write(str(nload) + '\n')
-				info2.write(str(newUtil) + '\n')
-				#info2.write(str(zeroUe) + '\n')
-			#(finalUtil,finalzeroUe) = getAllUtil(UEs,FermiIntfMap,finalLoad,N,UE_activity,Rx_power,Operators,i)
+				comp.write(str(newUtil) + '\n')
 
 			anyChanged = 0
 			for o in prevUtil:
@@ -868,19 +878,18 @@ def run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,Rx_power,
 			if (anyChanged == 0):
 				break
 			prevUtil = newUtil
-			#info2.write('Everyone Optimizes \n')
-			#info2.write(str(finalLoad) + '\n')
-			#info2.write(str(finalUtil)+'\n')
-			#info2.write(str(finalzeroUe)+'\n')
-			#info2.write('\n\n')
+
+			#if (it == 30):
+			#	delta = 0.5
+
 	return (All_util,All_tput)
 
-def main(density,l,w,toytop):
+def main(operators,npo,usersPerOperator,N,l,w):
 
         # number of sub-channels
-	N = 100 #int(math.ceil(bw / rbgsize))
+	#N = 5 #int(math.ceil(bw / rbgsize))
 	print N
-	operators = 3
+	#operators = 3
 	operator_enbs = {}
 	operator_ues = {}
 	enb_coord = []
@@ -890,7 +899,7 @@ def main(density,l,w,toytop):
 
 	Operators = []
 
-	usersPerOperator = {0:50,1:50,2:50}
+	#usersPerOperator = {0:5,1:5,2:5}
 
 
 
@@ -900,7 +909,7 @@ def main(density,l,w,toytop):
 
         # number of eNodeBs
 	#n = int(math.floor((l*w)*density + 0.5))
-	npo = [20,20,20]
+	#npo = [2,2,2]
 	print(npo)
 	j = 0
 	k = 0;
@@ -963,7 +972,7 @@ def main(density,l,w,toytop):
 
 	#write info to file
 	info = open(outputDir + 'info.txt','w')
-	comp = open(outputDir + 'comparison.txt','a')
+	comp = open(outputDir + 'convergence.txt','w')
 
 	#writing variables to file to recreate experiment
 	info.write('\n')
@@ -1059,10 +1068,25 @@ def main(density,l,w,toytop):
 
 	#res = run_ideal (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower)
 
-	
-	All_util = run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower,Operators)
-	f = open('results.dat','w')
+	iterations = 200;
+	(All_util,All_tput) = run_creditBased2bWith (UEs,u_m,G,N,UE_activity,info,comp,timesteps,RxPower,Operators,iterations)
+	f = open('tputu.txt','w')
+	#f.write('util = '+str(All_util)+'\n')
+	for t in All_tput:
+		f.write(str(t[0]).strip(']').strip('[')+'\n')
+	f.close()
+	f = open('tpute.txt','w')
+	#f.write('util = '+str(All_util)+'\n')
+	for t in All_tput:
+		f.write(str(t[1]).strip(']').strip('[')+'\n')
+	f.close()
+	f = open('tputo.txt','w')
+	#f.write('util = '+str(All_util)+'\n')
+	for t in All_tput:
+		f.write(str(t[2]).strip(']').strip('[')+'\n')
+	f.close()
 	#print All_util
+	f = open('results.dat','w')
 	for i in range(len(All_util)):
 		for j in range(len(Operators)):
 			f.write(str(All_util[i][j]))
@@ -1077,23 +1101,32 @@ def main(density,l,w,toytop):
 	comp.close()
 
 
-	plot_graph(outputDir,'interferencemap', i_map, enb_coord, u_m, UEs,l,w,npo[0])
+	plot_graph(outputDir,'interferencemap', i_map, enb_coord, u_m, UEs,l,w,npo)
 	os.system('octave ' + outputDir + 'interferencemap.m')
 	#plot_ue_interference(outputDir,'UEinterferencemap', edges, enb_coord, u_m, UEs,l, w)
 	#os.system('octave ' + outputDir + 'UEinterferencemap.m')
 
-info2 = open('convergence.txt','w')
+#info2 = open('convergence.txt','w')
 
 
 # Body, generating scripts
 #os.system('mkdir ' + outputDir)
-for z in range(10):
-	l = 500
-	w = 500
-	info2.write(str(z)+'\n')
-	main(1,l,w,3)
+for z in range(50):
+	l = 400
+	w = 400
+	N = 100
+	#info2.write(str(z)+'\n')
+	operators = 3
+	npo = [15,15,15]
+	usersPerOperator = {0:60,1:60,2:60}
+	main(operators,npo,usersPerOperator,N,l,w)
 	os.system('mv res/utils.jpg res/utils_'+str(z)+'.jpg')
 	os.system('mv res/interferencemap.jpg res/interferencemap_'+str(z)+'.jpg')
+	os.system('mv tputu.txt res/tputu'+str(z)+'.txt')
+	os.system('mv tpute.txt res/tpute'+str(z)+'.txt')
+	os.system('mv tputo.txt res/tputo'+str(z)+'.txt')
+	os.system('mv res/convergence.txt res/convergence_'+str(z)+'.txt')
+	os.system('mv res/info.txt res/info_'+str(z)+'.txt')
 
 	#for a in [1]:
 		#os.system('echo '+str(a)+' >> comparison.txt')
@@ -1111,5 +1144,5 @@ for z in range(10):
 		#os.system('mv res/WiFitopo.cc res/'+str(a)+'/WiFi.cc')
 
 	#os.system('mv comparison.txt res/'+str(z)+'/comparison.txt')
-os.system('mv convergence.txt res/convergence_'+str(z)+'.txt')
-info2.close()
+	#os.system('mv convergence.txt res/convergence_'+str(z)+'.txt')
+#info2.close()
